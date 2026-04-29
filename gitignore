@@ -1,0 +1,6 @@
+data/db.json
+__pycache__/
+*.pyc
+venv/
+*.log
+.env
