@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Статистика сварщиков</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue-deep: #0a1628;
+    --blue-mid: #0d2347;
+    --blue-glass: rgba(13, 50, 100, 0.35);
+    --blue-border: rgba(50, 140, 255, 0.25);
+    --blue-glow: rgba(30, 100, 255, 0.15);
+    --orange: #ff6b1a;
+    --orange-soft: #ff8c42;
+    --orange-glow: rgba(255, 107, 26, 0.25);
+    --orange-glass: rgba(255, 107, 26, 0.12);
+    --good: #00e5a0;
+    --bad: #ff4466;
+    --neutral: #60aaff;
+    --text: #d0e8ff;
+    --text-dim: rgba(180, 210, 255, 0.6);
+    --glass-bg: rgba(8, 25, 60, 0.45);
+    --glass-border: rgba(80, 160, 255, 0.2);
+    --glass-highlight: rgba(120, 180, 255, 0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Exo 2', sans-serif;
+    background: var(--blue-deep);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Animated background ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(20, 60, 180, 0.4) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 80% 80%, rgba(255, 80, 0, 0.15) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 50% at 50% 50%, rgba(10, 30, 80, 0.8) 0%, transparent 100%);
+    animation: bgPulse 12s ease-in-out infinite alternate;
+  }
+  @keyframes bgPulse {
+    0%   { opacity: 1; }
+    100% { opacity: 0.7; transform: scale(1.05); }
+  }
+
+  /* Grid overlay */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(50, 120, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(50, 120, 255, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* ── Layout ── */
+  .page { position: relative; z-index: 1; max-width: 1300px; margin: 0 auto; padding: 0 24px 60px; }
+
+  /* ── Header ── */
+  header {
+    padding: 36px 0 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(18px, 3vw, 26px);
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(80, 160, 255, 0.8), 0 0 40px rgba(80, 160, 255, 0.4);
+  }
+  .logo span { color: var(--orange); text-shadow: 0 0 20px var(--orange-glow); }
+  .updated {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .updated-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--good);
+    box-shadow: 0 0 8px var(--good);
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Glass card ── */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    box-shadow:
+      0 8px 32px rgba(0,0,10,0.4),
+      inset 0 1px 0 rgba(120,180,255,0.15),
+      inset 0 -1px 0 rgba(0,0,0,0.3);
+    position: relative;
+    overflow: hidden;
+  }
+  .glass::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(120,180,255,0.4), transparent);
+  }
+
+  /* ── Section title ── */
+  .section-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--orange-soft);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--orange-glass), transparent);
+  }
+
+  /* ── View: Список сварщиков ── */
+  #view-list { animation: fadeIn 0.4s ease; }
+  #view-welder { display: none; animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+  /* ── Search ── */
+  .search-wrap {
+    position: relative;
+    margin-bottom: 24px;
+  }
+  .search-wrap svg {
+    position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+    opacity: 0.4; pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    background: rgba(10, 30, 80, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 14px 18px 14px 48px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    outline: none;
+    transition: border-color 0.25s, box-shadow 0.25s;
+  }
+  .search-input::placeholder { color: var(--text-dim); }
+  .search-input:focus {
+    border-color: rgba(80,160,255,0.5);
+    box-shadow: 0 0 0 3px rgba(50,120,255,0.1), 0 0 20px rgba(50,120,255,0.08);
+  }
+
+  /* ── Welder list grid ── */
+  .welders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .welder-card {
+    padding: 22px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  }
+  .welder-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255, 107, 26, 0.4);
+    box-shadow:
+      0 16px 40px rgba(0,0,20,0.5),
+      0 0 20px var(--orange-glow),
+      inset 0 1px 0 rgba(255,150,80,0.15);
+  }
+
+  .wc-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #fff;
+    line-height: 1.3;
+  }
+  .wc-stamp {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    color: var(--orange-soft);
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+  }
+  .wc-org {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .wc-mini-stats {
+    display: flex; gap: 10px;
+  }
+  .mini-stat {
+    flex: 1;
+    background: var(--glass-highlight);
+    border: 1px solid rgba(80,160,255,0.12);
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .mini-stat-val {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .mini-stat-val.good { color: var(--good); }
+  .mini-stat-val.bad  { color: var(--bad); }
+  .mini-stat-val.pct  { color: var(--orange-soft); }
+  .mini-stat-lbl {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Welder detail view ── */
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    background: var(--orange-glass);
+    border: 1px solid var(--orange-glow);
+    border-radius: 10px;
+    color: var(--orange-soft);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    margin-bottom: 28px;
+    transition: background 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+  }
+  .back-btn:hover {
+    background: rgba(255,107,26,0.2);
+    box-shadow: 0 0 15px var(--orange-glow);
+  }
+
+  .welder-header {
+    display: flex; align-items: flex-start; gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .welder-avatar {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue-glass), var(--orange-glass));
+    border: 2px solid var(--orange-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--orange-soft);
+    flex-shrink: 0;
+    box-shadow: 0 0 20px var(--orange-glow);
+  }
+  .welder-title h2 {
+    font-size: clamp(18px,3vw,26px);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .welder-title .stamp-badge {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--orange-soft);
+    padding: 4px 12px;
+    background: var(--orange-glass);
+    border: 1px solid var(--orange-glow);
+    border-radius: 20px;
+    display: inline-block;
+  }
+
+  /* ── Stats panels ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  @media(max-width:640px){ .stats-grid { grid-template-columns: 1fr; } }
+
+  .stat-panel { padding: 24px; }
+  .stat-panel-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+    text-transform: uppercase;
+  }
+  .stat-row {
+    display: flex; justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(80,160,255,0.07);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { font-size: 13px; color: var(--text-dim); }
+  .stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .stat-value.good { color: var(--good); text-shadow: 0 0 12px rgba(0,229,160,0.5); }
+  .stat-value.bad  { color: var(--bad);  text-shadow: 0 0 12px rgba(255,68,102,0.5); }
+  .stat-value.pct  { color: var(--orange-soft); }
+  .stat-value.neutral { color: var(--neutral); }
+
+  /* Progress bar */
+  .progress-wrap { margin-top: 16px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+  .progress-bar-bg {
+    height: 6px; border-radius: 3px;
+    background: rgba(80,160,255,0.1);
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--good), var(--neutral));
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  }
+  .progress-bar-fill.bad-fill {
+    background: linear-gradient(90deg, var(--orange), var(--bad));
+  }
+
+  /* ── Joints table ── */
+  .joints-section { margin-top: 28px; }
+  
+  .filter-row {
+    display: flex; gap: 10px; align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .filter-input {
+    background: rgba(10,30,80,0.5);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 13px;
+    outline: none;
+  }
+  .filter-input:focus { border-color: rgba(80,160,255,0.5); }
+
+  .joint-card {
+    margin-bottom: 12px;
+    padding: 0;
+    border-radius: 14px;
+  }
+  .joint-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .joint-id {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--neutral);
+  }
+  .joint-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .joint-meta span {
+    font-size: 12px;
+    color: var(--text-dim);
+    background: rgba(80,160,255,0.07);
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(80,160,255,0.1);
+  }
+
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+  .badge-good { background: rgba(0,229,160,0.15); color: var(--good); border: 1px solid rgba(0,229,160,0.3); }
+  .badge-bad  { background: rgba(255,68,102,0.15);  color: var(--bad);  border: 1px solid rgba(255,68,102,0.3); }
+  .badge-wait { background: rgba(255,165,0,0.15);   color: #ffaa30;     border: 1px solid rgba(255,165,0,0.3); }
+
+  .joint-history {
+    display: none;
+    padding: 0 20px 18px;
+    border-top: 1px solid rgba(80,160,255,0.08);
+    margin-top: 4px;
+  }
+  .joint-history.open { display: block; }
+
+  .history-timeline {
+    position: relative;
+    padding-left: 28px;
+    margin-top: 14px;
+  }
+  .history-timeline::before {
+    content: '';
+    position: absolute; left: 8px; top: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, var(--orange-soft), transparent);
+  }
+
+  .history-item {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .history-item::before {
+    content: '';
+    position: absolute;
+    left: -23px; top: 6px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--orange-soft);
+    background: var(--blue-deep);
+  }
+  .history-item.good::before { border-color: var(--good); background: rgba(0,229,160,0.2); }
+  .history-item.bad::before  { border-color: var(--bad);  background: rgba(255,68,102,0.2); }
+
+  .history-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin-bottom: 3px;
+  }
+  .history-content {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .history-date { color: var(--neutral); font-weight: 500; }
+  .history-welder { color: #fff; }
+  .history-result-good { color: var(--good); font-weight: 600; }
+  .history-result-bad  { color: var(--bad);  font-weight: 600; }
+
+  /* ── Empty ── */
+  .empty {
+    text-align: center; padding: 60px 20px;
+    color: var(--text-dim); font-size: 15px;
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* ── Loading ── */
+  .loading {
+    text-align: center; padding: 80px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px; letter-spacing: 3px;
+    color: var(--text-dim);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: rgba(10,20,50,0.5); }
+  ::-webkit-scrollbar-thumb { background: rgba(80,140,255,0.3); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="logo">СВАР<span>КОН</span>ТРОЛЬ</div>
+    <div class="updated">
+      <div class="updated-dot"></div>
+      <span id="updated-text">Загрузка...</span>
+    </div>
+  </header>
+
+  <!-- ────────────── Список сварщиков ────────────── -->
+  <div id="view-list">
+    <div class="section-title">Выберите сварщика</div>
+
+    <div class="search-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input class="search-input" id="search" type="text" placeholder="Поиск по ФИО, клейму, организации...">
+    </div>
+
+    <div class="welders-grid" id="welders-grid">
+      <div class="loading">ЗАГРУЗКА ДАННЫХ...</div>
+    </div>
+  </div>
+
+  <!-- ────────────── Профиль сварщика ────────────── -->
+  <div id="view-welder">
+    <button class="back-btn" id="back-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M19 12H5M12 5l-7 7 7 7"/>
+      </svg>
+      Назад к списку
+    </button>
+
+    <div id="welder-content">
+      <div class="loading">ЗАГРУЗКА...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let DB = null;
+
+async function loadDB() {
+  const res = await fetch('/api/db');
+  DB = await res.json();
+  document.getElementById('updated-text').textContent = 'Обновлено: ' + (DB.updated_at || '—');
+  renderWelderList(DB.welders);
+}
+
+// ─── Welder List ───────────────────────────────────────────────────────────
+
+function renderWelderList(welders) {
+  const grid = document.getElementById('welders-grid');
+  if (!welders.length) {
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">👷</div>Список сварщиков пуст</div>';
+    return;
+  }
+  grid.innerHTML = welders.map(w => {
+    const s = DB.stats[w.fio] || {};
+    const good = s.good ?? '—';
+    const bad  = s.bad  ?? '—';
+    const pct  = s.pct_bad != null ? (s.pct_bad * 100).toFixed(1) + '%' : '—';
+    const initials = w.fio.split(' ').map(p => p[0]).join('').slice(0,2);
+    return `
+    <div class="glass welder-card" onclick="openWelder('${esc(w.fio)}')">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="
+          width:42px;height:42px;border-radius:50%;
+          background:linear-gradient(135deg,rgba(13,50,100,0.8),rgba(255,107,26,0.2));
+          border:1.5px solid rgba(255,107,26,0.4);
+          display:flex;align-items:center;justify-content:center;
+          font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;
+          color:var(--orange-soft);flex-shrink:0;
+        ">${initials}</div>
+        <div>
+          <div class="wc-name">${esc(w.fio)}</div>
+          <div class="wc-stamp">${esc(w.stamp || '—')}</div>
+        </div>
+      </div>
+      <div class="wc-org">${esc(w.org || w.subdivision || '—')}</div>
+      <div class="wc-mini-stats">
+        <div class="mini-stat">
+          <div class="mini-stat-val good">${good}</div>
+          <div class="mini-stat-lbl">Годных</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-val bad">${bad}</div>
+          <div class="mini-stat-lbl">Брак</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-val pct">${pct}</div>
+          <div class="mini-stat-lbl">% брака</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterWelders() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const filtered = (DB?.welders || []).filter(w =>
+    w.fio.toLowerCase().includes(q) ||
+    (w.stamp||'').toLowerCase().includes(q) ||
+    (w.org||'').toLowerCase().includes(q)
+  );
+  renderWelderList(filtered);
+}
+
+// ─── Welder Detail ─────────────────────────────────────────────────────────
+
+function openWelder(fio) {
+  const w = DB.welders.find(x => x.fio === fio) || { fio };
+  const s = DB.stats[fio] || {};
+  const joints = (DB.joints || []).filter(j =>
+    j.history.some(h => h.welder === fio)
+  );
+
+  document.getElementById('view-list').style.display = 'none';
+  const vw = document.getElementById('view-welder');
+  vw.style.display = 'block';
+  vw.scrollIntoView({ behavior: 'smooth' });
+
+  const pctAll = s.pct_bad != null ? (s.pct_bad * 100).toFixed(1) : null;
+  const pctPer = s.pct_bad_period != null ? (s.pct_bad_period * 100).toFixed(1) : null;
+  const goodPct = s.good != null && s.total ? (s.good / s.total * 100) : 0;
+  const initials = fio.split(' ').map(p => p[0]).join('').slice(0,2);
+
+  document.getElementById('welder-content').innerHTML = `
+    <div class="welder-header">
+      <div class="welder-avatar">${initials}</div>
+      <div class="welder-title">
+        <h2>${esc(fio)}</h2>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          ${w.stamp ? `<span class="stamp-badge">${esc(w.stamp)}</span>` : ''}
+          ${w.qualification ? `<span class="stamp-badge" style="color:var(--neutral);border-color:rgba(80,160,255,0.3);background:rgba(80,160,255,0.08)">${esc(w.qualification)}</span>` : ''}
+          ${w.org ? `<span class="stamp-badge" style="color:var(--text-dim);border-color:rgba(80,160,255,0.15);background:rgba(80,160,255,0.05)">${esc(w.org)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="glass stat-panel">
+        <div class="stat-panel-title">Всё время</div>
+        <div class="stat-row">
+          <div class="stat-label">Всего проконтролировано</div>
+          <div class="stat-value neutral">${s.total ?? '—'}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Годных стыков</div>
+          <div class="stat-value good">${s.good ?? '—'}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Брак</div>
+          <div class="stat-value bad">${s.bad ?? '—'}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Процент брака</div>
+          <div class="stat-value pct">${pctAll != null ? pctAll + '%' : '—'}</div>
+        </div>
+        ${s.total ? `
+        <div class="progress-wrap">
+          <div class="progress-label"><span>Годных</span><span>${goodPct.toFixed(1)}%</span></div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:${goodPct}%"></div>
+          </div>
+        </div>` : ''}
+      </div>
+
+      <div class="glass stat-panel">
+        <div class="stat-panel-title">За период ${DB.period_start || '—'} — ${DB.period_end || '—'}</div>
+        <div class="stat-row">
+          <div class="stat-label">Всего проконтролировано</div>
+          <div class="stat-value neutral">${s.total_period ?? '—'}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Годных стыков</div>
+          <div class="stat-value good">${s.good_period ?? '—'}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Брак</div>
+          <div class="stat-value bad">${s.bad_period ?? '—'}</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">Процент брака</div>
+          <div class="stat-value pct">${pctPer != null ? pctPer + '%' : '—'}</div>
+        </div>
+        ${s.bad_period != null && s.total_period ? `
+        <div class="progress-wrap">
+          <div class="progress-label"><span>Брак</span><span>${pctPer}%</span></div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill bad-fill" style="width:${pctPer}%"></div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="joints-section">
+      <div class="section-title">Стыки сварщика</div>
+      <div class="filter-row">
+        <input class="filter-input" id="joint-filter" placeholder="Фильтр по стыку, линии, ISO..." oninput="filterJoints()">
+        <select class="filter-input" id="result-filter" onchange="filterJoints()">
+          <option value="">Все результаты</option>
+          <option value="Годен">Годен</option>
+          <option value="Не годен">Не годен</option>
+        </select>
+      </div>
+      <div id="joints-list">${renderJoints(joints, fio)}</div>
+    </div>
+  `;
+
+  window._currentJoints = joints;
+  window._currentFio = fio;
+}
+
+function renderJoints(joints, fio) {
+  if (!joints.length) return '<div class="empty"><div class="empty-icon">🔩</div>Стыки не найдены</div>';
+  return joints.map((j, idx) => {
+    const finalResult = j.control_result || (j.history.length ? j.history[j.history.length-1].result : '');
+    const isGood = finalResult === 'Годен';
+    const badgeCls = finalResult === 'Годен' ? 'badge-good' : finalResult === 'Не годен' ? 'badge-bad' : 'badge-wait';
+    return `
+    <div class="glass joint-card" data-result="${esc(finalResult)}" data-text="${esc(j.joint_id+' '+j.line+' '+j.iso+' '+j.size+' '+j.zone)}">
+      <div class="joint-card-header" onclick="toggleJoint(this)">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <span class="joint-id">${esc(j.joint_id || j.num)}</span>
+          <div class="joint-meta">
+            ${j.line ? `<span>Линия: ${esc(j.line)}</span>` : ''}
+            ${j.iso  ? `<span>ISO: ${esc(j.iso)}</span>` : ''}
+            ${j.size ? `<span>${esc(j.size)}</span>` : ''}
+            ${j.zone ? `<span>Зона: ${esc(j.zone)}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge ${badgeCls}">${esc(finalResult || 'Нет данных')}</span>
+          <svg style="opacity:0.4;transition:transform 0.25s" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </div>
+      </div>
+      <div class="joint-history">
+        <div class="history-timeline">
+          ${j.history.map(h => {
+            const isG = h.result === 'Годен';
+            const isB = h.result === 'Не годен';
+            const hl = h.welder === fio ? 'color:#fff;font-weight:600;' : 'color:var(--text-dim);';
+            return `
+            <div class="history-item ${isG?'good':isB?'bad':''}">
+              <div class="history-label">${esc(h.label)}</div>
+              <div class="history-content">
+                <span class="history-date">${esc(h.date || '—')}</span>
+                <span style="${hl}">${esc(h.welder || '—')}</span>
+                <span class="${isG?'history-result-good':isB?'history-result-bad':''}">${esc(h.result || '—')}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleJoint(header) {
+  const hist = header.nextElementSibling;
+  const arrow = header.querySelector('svg');
+  const open = hist.classList.toggle('open');
+  arrow.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+function filterJoints() {
+  const q = (document.getElementById('joint-filter')?.value || '').toLowerCase();
+  const r = document.getElementById('result-filter')?.value || '';
+  const joints = (window._currentJoints || []).filter(j => {
+    const txt = (j.joint_id+' '+j.line+' '+j.iso+' '+j.size+' '+j.zone).toLowerCase();
+    const res = j.control_result || '';
+    return txt.includes(q) && (r === '' || res === r);
+  });
+  document.getElementById('joints-list').innerHTML = renderJoints(joints, window._currentFio);
+}
+
+function backToList() {
+  document.getElementById('view-welder').style.display = 'none';
+  document.getElementById('view-list').style.display = 'block';
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+document.getElementById('search').addEventListener('input', filterWelders);
+document.getElementById('back-btn').addEventListener('click', backToList);
+loadDB();
+</script>
+</body>
+</html>
